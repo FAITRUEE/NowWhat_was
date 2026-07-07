@@ -24,13 +24,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/tasks")
 public class TaskController {
 
-    private static final int RERANK_CANDIDATE_LIMIT = 5;
+    private static final int DEFAULT_RERANK_CANDIDATE_LIMIT = 5;
 
     private final TaskService taskService;
     private final TaskRerankService taskRerankService;
@@ -54,6 +55,15 @@ public class TaskController {
             @RequestParam(defaultValue = "all") String view
     ) {
         return taskService.getTasks(userId, TaskView.from(view));
+    }
+
+    @GetMapping("/calendar")
+    public List<TaskResponse> calendar(
+            @AuthenticationPrincipal Long userId,
+            @RequestParam LocalDate from,
+            @RequestParam LocalDate to
+    ) {
+        return taskService.getCalendarTasks(userId, from, to);
     }
 
     @GetMapping("/{id}")
@@ -87,8 +97,16 @@ public class TaskController {
     }
 
     @PostMapping("/rerank")
-    public List<RerankedTask> rerank(@AuthenticationPrincipal Long userId) {
-        List<RerankCandidate> candidates = taskService.getTopCandidates(userId, RERANK_CANDIDATE_LIMIT);
+    public List<RerankedTask> rerank(
+            @AuthenticationPrincipal Long userId,
+            @RequestParam(defaultValue = "all") String view,
+            @RequestParam(defaultValue = "5") int limit
+    ) {
+        List<RerankCandidate> candidates = taskService.getTopCandidates(
+                userId,
+                limit > 0 ? limit : DEFAULT_RERANK_CANDIDATE_LIMIT,
+                TaskView.from(view)
+        );
         return taskRerankService.rerank(candidates);
     }
 }

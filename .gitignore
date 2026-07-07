@@ -35,3 +35,11 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### H2 file-based database ###
+/data/
+
+### bootRun manual-testing artifacts ###
+boot.log
+boot.err.log
+boot.pid

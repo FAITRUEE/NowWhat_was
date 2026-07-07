@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Comparator;
 import java.util.List;
@@ -74,6 +75,22 @@ public class TaskService {
         return TaskResponse.from(task);
     }
 
+    /**
+     * Tasks whose deadline falls within [from, to], for calendar-grid display. Unlike
+     * getTasks(), this includes DONE tasks too — a calendar cell should still show what was
+     * due that day regardless of completion status.
+     */
+    public List<TaskResponse> getCalendarTasks(Long userId, LocalDate from, LocalDate to) {
+        User user = getUser(userId);
+        LocalDateTime start = from.atStartOfDay();
+        LocalDateTime end = to.atTime(LocalTime.MAX);
+        return taskRepository.findByUserIdAndDeadlineBetween(userId, start, end).stream()
+                .peek(task -> applyScore(task, user))
+                .sorted(Comparator.comparing(Task::getDeadline))
+                .map(TaskResponse::from)
+                .toList();
+    }
+
     @Transactional
     public TaskResponse update(Long userId, Long taskId, TaskUpdateRequest request) {
         Task task = getOwnedTask(userId, taskId);
@@ -87,7 +104,9 @@ public class TaskService {
 
     @Transactional
     public void delete(Long userId, Long taskId) {
-        taskRepository.delete(getOwnedTask(userId, taskId));
+        Task task = getOwnedTask(userId, taskId);
+        taskHistoryService.deleteHistoryFor(task);
+        taskRepository.delete(task);
     }
 
     @Transactional
@@ -110,16 +129,24 @@ public class TaskService {
         }
     }
 
+    private static final int MIN_RERANK_LIMIT = 1;
+    private static final int MAX_RERANK_LIMIT = 20;
+
     /**
      * Top-N candidates for LLM rerank (FN-040), freshly scored and ranked 1-based so the
-     * prompt can tell the LLM what the rule-based baseline order already is.
+     * prompt can tell the LLM what the rule-based baseline order already is. Filtered by the
+     * same view the dashboard is currently showing, so rerank reorders what the user actually
+     * sees instead of always drawing from the global top-N regardless of view. limit is clamped
+     * so a caller can't force an unbounded prompt into the local LLM.
      */
-    public List<RerankCandidate> getTopCandidates(Long userId, int limit) {
+    public List<RerankCandidate> getTopCandidates(Long userId, int limit, TaskView view) {
+        int clampedLimit = Math.max(MIN_RERANK_LIMIT, Math.min(MAX_RERANK_LIMIT, limit));
         User user = getUser(userId);
         List<Task> ranked = taskRepository.findByUserIdAndStatus(userId, TaskStatus.TODO).stream()
                 .peek(task -> applyScore(task, user))
+                .filter(task -> matchesView(task, view))
                 .sorted(Comparator.comparing(Task::getScore, Comparator.reverseOrder()))
-                .limit(limit)
+                .limit(clampedLimit)
                 .toList();
 
         return IntStream.range(0, ranked.size())

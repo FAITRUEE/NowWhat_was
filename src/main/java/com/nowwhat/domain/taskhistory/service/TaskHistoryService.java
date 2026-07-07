@@ -27,6 +27,16 @@ public class TaskHistoryService {
         taskHistoryRepository.save(new TaskHistory(task, LocalDateTime.now(), minutes));
     }
 
+    /**
+     * Deleting a Task with completion history would otherwise violate the task_histories ->
+     * tasks FK; the history only makes sense in the context of a task that still exists, so it
+     * goes with it.
+     */
+    @Transactional
+    public void deleteHistoryFor(Task task) {
+        taskHistoryRepository.deleteByTask(task);
+    }
+
     public List<TaskHistoryResponse> getHistory(Long userId, HistoryPeriod period) {
         LocalDateTime since = switch (period) {
             case WEEK -> LocalDate.now().minusWeeks(1).atStartOfDay();

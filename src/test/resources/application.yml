@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: NowWhat
+  datasource:
+    url: jdbc:h2:mem:nowwhat-test;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+  h2:
+    console:
+      enabled: false
+
+ollama:
+  base-url: http://localhost:11434
+  model: exaone3.5:7.8b
+
+jwt:
+  secret: "test-only-secret-key-not-for-production-0123456789abcdef"
+  expiration-ms: 86400000
+
+app:
+  cors:
+    allowed-origins: http://localhost:5173
