@@ -2,7 +2,7 @@ spring:
   application:
     name: NowWhat
   datasource:
-    url: jdbc:h2:mem:nowwhat
+    url: jdbc:h2:file:./data/nowwhat
     driver-class-name: org.h2.Driver
     username: sa
     password:
@@ -17,8 +17,16 @@ spring:
 
 ollama:
   base-url: http://localhost:11434
-  model: qwen2.5:3b
+  model: exaone3.5:7.8b
 
 jwt:
-  secret: "nowwhat-local-dev-secret-key-change-before-production-0123456789"
+  # Overridable via the JWT_SECRET env var (Spring Boot already maps env vars to properties this
+  # way even without the ${} placeholder — it's written explicitly here so it's obvious at a
+  # glance, not just Spring Boot trivia). The literal default below is a known, public
+  # placeholder; JwtTokenProvider logs a WARN at startup if it's still in effect.
+  secret: "${JWT_SECRET:nowwhat-local-dev-secret-key-change-before-production-0123456789}"
   expiration-ms: 86400000
+
+app:
+  cors:
+    allowed-origins: http://localhost:5173

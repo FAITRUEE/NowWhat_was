@@ -1,5 +1,6 @@
 package com.nowwhat.domain.taskhistory.repository;
 
+import com.nowwhat.domain.task.entity.Task;
 import com.nowwhat.domain.taskhistory.entity.TaskHistory;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -8,4 +9,6 @@ import java.util.List;
 
 public interface TaskHistoryRepository extends JpaRepository<TaskHistory, Long> {
     List<TaskHistory> findByTask_User_IdAndCompletedAtAfterOrderByCompletedAtDesc(Long userId, LocalDateTime after);
+
+    void deleteByTask(Task task);
 }

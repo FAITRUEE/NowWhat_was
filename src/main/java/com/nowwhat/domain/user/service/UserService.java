@@ -26,6 +26,11 @@ public class UserService {
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
     }
 
+    public WeightResponse getWeights(Long userId) {
+        User user = getById(userId);
+        return new WeightResponse(user.getUrgencyWeight(), user.getImportanceWeight(), user.getEffortWeight());
+    }
+
     @Transactional
     public WeightResponse updateWeights(Long userId, WeightUpdateRequest request) {
         User user = getById(userId);
