@@ -8,7 +8,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface TaskRepository extends JpaRepository<Task, Long> {
-    List<Task> findByUserIdAndStatus(Long userId, TaskStatus status);
+    List<Task> findByUserIdAndStatusNot(Long userId, TaskStatus status);
 
     List<Task> findByUserIdAndDeadlineBetween(Long userId, LocalDateTime start, LocalDateTime end);
+
+    List<Task> findByTeam_Id(Long teamId);
+
+    List<Task> findByBundle_Id(Long bundleId);
 }

@@ -5,6 +5,7 @@ import com.nowwhat.domain.task.dto.RerankedTask;
 import com.nowwhat.domain.task.dto.TaskCompleteRequest;
 import com.nowwhat.domain.task.dto.TaskCreateRequest;
 import com.nowwhat.domain.task.dto.TaskResponse;
+import com.nowwhat.domain.task.dto.TaskStatusUpdateRequest;
 import com.nowwhat.domain.task.dto.TaskUpdateRequest;
 import com.nowwhat.domain.task.dto.TaskView;
 import com.nowwhat.domain.task.service.TaskRerankService;
@@ -94,6 +95,20 @@ public class TaskController {
     ) {
         Integer actualMinutes = request != null ? request.actualMinutes() : null;
         return taskService.complete(userId, id, actualMinutes);
+    }
+
+    @PatchMapping("/{id}/status")
+    public TaskResponse updateStatus(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long id,
+            @Valid @RequestBody TaskStatusUpdateRequest request
+    ) {
+        return taskService.updateStatus(userId, id, request.status());
+    }
+
+    @PatchMapping("/{id}/reassign")
+    public TaskResponse reassignToSelf(@AuthenticationPrincipal Long userId, @PathVariable Long id) {
+        return taskService.reassignToSelf(userId, id);
     }
 
     @PostMapping("/rerank")

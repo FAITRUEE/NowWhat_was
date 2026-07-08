@@ -15,7 +15,8 @@ public record TaskResponse(
         TaskStatus status,
         Double score,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        Long teamId
 ) {
     public static TaskResponse from(Task task) {
         return new TaskResponse(
@@ -28,7 +29,8 @@ public record TaskResponse(
                 task.getStatus(),
                 task.getScore(),
                 task.getCreatedAt(),
-                task.getUpdatedAt()
+                task.getUpdatedAt(),
+                task.getTeamId()
         );
     }
 }

@@ -1,5 +1,7 @@
 package com.nowwhat.domain.task.entity;
 
+import com.nowwhat.domain.team.entity.Team;
+import com.nowwhat.domain.team.entity.TaskBundle;
 import com.nowwhat.domain.user.entity.User;
 import com.nowwhat.global.common.BaseTimeEntity;
 import jakarta.persistence.Column;
@@ -45,16 +47,34 @@ public class Task extends BaseTimeEntity {
     private Integer estimatedMinutes;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 10)
+    @Column(nullable = false, length = 20)
     private TaskStatus status = TaskStatus.TODO;
 
     private Double score;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "team_id")
+    private Team team;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "bundle_id")
+    private TaskBundle bundle;
 
     protected Task() {
     }
 
     public Task(User user, String title, String description, LocalDateTime deadline, int importance, Integer estimatedMinutes) {
         this.user = user;
+        this.title = title;
+        this.description = description;
+        this.deadline = deadline;
+        this.importance = importance;
+        this.estimatedMinutes = estimatedMinutes;
+    }
+
+    public Task(User user, Team team, String title, String description, LocalDateTime deadline, int importance, Integer estimatedMinutes) {
+        this.user = user;
+        this.team = team;
         this.title = title;
         this.description = description;
         this.deadline = deadline;
@@ -78,7 +98,28 @@ public class Task extends BaseTimeEntity {
         this.status = TaskStatus.DONE;
     }
 
+    public void moveTo(TaskStatus status) {
+        this.status = status;
+    }
+
+    /** Hands a task off to someone else — used by the "나로 바꾸기" take-over action on the team board. */
+    public void reassignTo(User user) {
+        this.user = user;
+    }
+
+    public void assignToBundle(TaskBundle bundle) {
+        this.bundle = bundle;
+    }
+
     public boolean isOwnedBy(Long userId) {
         return this.user.getId().equals(userId);
+    }
+
+    public Long getTeamId() {
+        return this.team != null ? this.team.getId() : null;
+    }
+
+    public Long getBundleId() {
+        return this.bundle != null ? this.bundle.getId() : null;
     }
 }

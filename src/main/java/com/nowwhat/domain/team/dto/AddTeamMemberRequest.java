@@ -1,0 +1,9 @@
+package com.nowwhat.domain.team.dto;
+
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+
+public record AddTeamMemberRequest(
+        @NotBlank @Email String email
+) {
+}

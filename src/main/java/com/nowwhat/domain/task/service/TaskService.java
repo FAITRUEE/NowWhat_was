@@ -9,6 +9,7 @@ import com.nowwhat.domain.task.entity.Task;
 import com.nowwhat.domain.task.entity.TaskStatus;
 import com.nowwhat.domain.task.repository.TaskRepository;
 import com.nowwhat.domain.taskhistory.service.TaskHistoryService;
+import com.nowwhat.domain.team.repository.TeamMemberRepository;
 import com.nowwhat.domain.user.entity.User;
 import com.nowwhat.domain.user.repository.UserRepository;
 import com.nowwhat.global.exception.CustomException;
@@ -30,17 +31,20 @@ public class TaskService {
     private final UserRepository userRepository;
     private final PriorityScoreCalculator priorityScoreCalculator;
     private final TaskHistoryService taskHistoryService;
+    private final TeamMemberRepository teamMemberRepository;
 
     public TaskService(
             TaskRepository taskRepository,
             UserRepository userRepository,
             PriorityScoreCalculator priorityScoreCalculator,
-            TaskHistoryService taskHistoryService
+            TaskHistoryService taskHistoryService,
+            TeamMemberRepository teamMemberRepository
     ) {
         this.taskRepository = taskRepository;
         this.userRepository = userRepository;
         this.priorityScoreCalculator = priorityScoreCalculator;
         this.taskHistoryService = taskHistoryService;
+        this.teamMemberRepository = teamMemberRepository;
     }
 
     @Transactional
@@ -61,7 +65,7 @@ public class TaskService {
      */
     public List<TaskResponse> getTasks(Long userId, TaskView view) {
         User user = getUser(userId);
-        return taskRepository.findByUserIdAndStatus(userId, TaskStatus.TODO).stream()
+        return taskRepository.findByUserIdAndStatusNot(userId, TaskStatus.DONE).stream()
                 .peek(task -> applyScore(task, user))
                 .filter(task -> matchesView(task, view))
                 .sorted(Comparator.comparing(Task::getScore, Comparator.reverseOrder()))
@@ -117,9 +121,38 @@ public class TaskService {
         return TaskResponse.from(task);
     }
 
+    /**
+     * Status changes from the shared team board: unlike {@link #getOwnedTask}, this also allows
+     * any member of the task's team (not just the owner/assignee) to move a card between
+     * columns, since a kanban board is meant to be editable by the whole team.
+     */
+    @Transactional
+    public TaskResponse updateStatus(Long userId, Long taskId, TaskStatus status) {
+        Task task = getAccessibleTask(userId, taskId);
+        if (status == TaskStatus.DONE) {
+            task.complete();
+            taskHistoryService.record(task, null);
+        } else {
+            task.moveTo(status);
+        }
+        return TaskResponse.from(task);
+    }
+
+    /**
+     * "나로 바꾸기" on the team board — any fellow team member can take over a task from whoever
+     * currently owns it, no restrictions beyond membership (reuses {@link #getAccessibleTask}).
+     */
+    @Transactional
+    public TaskResponse reassignToSelf(Long userId, Long taskId) {
+        Task task = getAccessibleTask(userId, taskId);
+        task.reassignTo(getUser(userId));
+        applyScore(task, task.getUser());
+        return TaskResponse.from(task);
+    }
+
     @Transactional
     public void recalculateAllScores(Long userId, double urgencyWeight, double importanceWeight, double effortWeight) {
-        List<Task> tasks = taskRepository.findByUserIdAndStatus(userId, TaskStatus.TODO);
+        List<Task> tasks = taskRepository.findByUserIdAndStatusNot(userId, TaskStatus.DONE);
         for (Task task : tasks) {
             double score = priorityScoreCalculator.calculate(
                     task.getDeadline(), task.getImportance(), task.getEstimatedMinutes(),
@@ -142,7 +175,7 @@ public class TaskService {
     public List<RerankCandidate> getTopCandidates(Long userId, int limit, TaskView view) {
         int clampedLimit = Math.max(MIN_RERANK_LIMIT, Math.min(MAX_RERANK_LIMIT, limit));
         User user = getUser(userId);
-        List<Task> ranked = taskRepository.findByUserIdAndStatus(userId, TaskStatus.TODO).stream()
+        List<Task> ranked = taskRepository.findByUserIdAndStatusNot(userId, TaskStatus.DONE).stream()
                 .peek(task -> applyScore(task, user))
                 .filter(task -> matchesView(task, view))
                 .sorted(Comparator.comparing(Task::getScore, Comparator.reverseOrder()))
@@ -185,5 +218,18 @@ public class TaskService {
             throw new CustomException(ErrorCode.ACCESS_DENIED);
         }
         return task;
+    }
+
+    private Task getAccessibleTask(Long userId, Long taskId) {
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new CustomException(ErrorCode.TASK_NOT_FOUND));
+        if (task.isOwnedBy(userId)) {
+            return task;
+        }
+        Long teamId = task.getTeamId();
+        if (teamId != null && teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)) {
+            return task;
+        }
+        throw new CustomException(ErrorCode.ACCESS_DENIED);
     }
 }
