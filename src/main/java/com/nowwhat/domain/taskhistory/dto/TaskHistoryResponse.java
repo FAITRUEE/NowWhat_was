@@ -9,7 +9,8 @@ public record TaskHistoryResponse(
         String title,
         LocalDateTime completedAt,
         Integer actualMinutes,
-        Integer estimatedMinutes
+        Integer estimatedMinutes,
+        LocalDateTime deadline
 ) {
     public static TaskHistoryResponse from(TaskHistory history) {
         return new TaskHistoryResponse(
@@ -17,7 +18,8 @@ public record TaskHistoryResponse(
                 history.getTask().getTitle(),
                 history.getCompletedAt(),
                 history.getActualMinutes(),
-                history.getTask().getEstimatedMinutes()
+                history.getTask().getEstimatedMinutes(),
+                history.getTask().getDeadline()
         );
     }
 }

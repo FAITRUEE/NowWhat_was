@@ -9,6 +9,7 @@
 - **가중치 커스터마이징**: 긴급도/중요도/소요시간 가중치를 사용자가 직접 조정, 변경 시 전체 재계산
 - **완료 처리 및 이력 관리**: 완료 시 실제 소요시간 기록, 기간별 이력 조회
 - **LLM 기반 재정렬**: 점수가 비슷한 상위 할 일들을 로컬 LLM(Ollama)에 전달해 자연어로 재정렬 + 추천 이유 생성, 실패 시 규칙 기반 순위로 자동 폴백
+- **팀 협업**: 팀 생성/멤버 초대, 담당자를 지정한 업무 생성, LLM 기반 업무 그룹화("역할 추천 분배" — 이미 만들어진 업무들을 우선순위/성격이 비슷한 묶음으로 재편성, 실패 시 라운드로빈 폴백), 담당자 재배정("나로 바꾸기"), 팀원 누구나 편집 가능한 공유 칸반보드(할 일/진행 중/완료)
 
 ## 기술 스택
 
@@ -32,6 +33,15 @@ score = w1 * urgency_score + w2 * importance_score + w3 * effort_score
 - `effort_score`: 예상 소요시간이 짧을수록 가산점
 - `w1(urgency) / w2(importance) / w3(effort)`: 사용자별 가중치, 기본값 `0.5 / 0.3 / 0.2`, `PUT /api/users/weights`로 조정 가능
 
+## 팀 협업
+
+`Task`에 담당자(`user`)와 별개로 선택적 `team` 연결이 있어, 팀 업무도 개인 업무와 완전히 같은 CRUD/우선순위 계산 경로를 그대로 탑니다.
+
+- **업무 생성**: `POST /api/teams/{id}/tasks`로 담당자를 지정해 업무를 만듭니다. LLM은 여기 관여하지 않습니다.
+- **역할 추천 분배**(`POST /api/teams/{id}/organize`): 이미 만들어진 팀의 미완료 업무들을 로컬 LLM(Ollama)에 보내 우선순위·성격이 비슷한 것끼리 그룹(`TaskBundle`)으로 재편성합니다. **담당자는 절대 바뀌지 않습니다** — 순전히 보기 좋게 묶어주는 기능입니다. LLM이 실패하거나 응답이 스키마에 안 맞으면 라운드로빈으로 그룹을 나누는 폴백이 동작합니다.
+- **담당자 재배정**(`PATCH /api/tasks/{id}/reassign`, "나로 바꾸기"): 팀원이면 누구나 다른 사람이 담당하던 업무를 자신에게로 옮길 수 있습니다. 선착순 개념이 아니라 언제든 가능한 단순 소유권 이전입니다.
+- **공유 칸반보드**(`GET /api/teams/{id}/board`): 팀의 전체 업무를 담당자 이메일·점수와 함께 반환합니다. 상태 변경(`PATCH /api/tasks/{id}/status`)은 담당자가 아니어도 같은 팀 멤버면 누구나 할 수 있습니다 — 칸반보드는 팀 전체가 같이 쓰는 화면이기 때문입니다. 단, 업무 내용 수정(`PUT`)·삭제(`DELETE`)는 현재 담당자만 가능합니다(기존 개인 업무 권한 체크를 그대로 재사용).
+
 ## API 엔드포인트
 
 | 기능 | Method | Path |
@@ -46,9 +56,19 @@ score = w1 * urgency_score + w2 * importance_score + w3 * effort_score
 | 할 일 수정 | PUT | `/api/tasks/{id}` |
 | 할 일 삭제 | DELETE | `/api/tasks/{id}` |
 | 할 일 완료 처리 | PATCH | `/api/tasks/{id}/complete` |
+| 할 일 상태 변경 (TODO\|IN_PROGRESS\|DONE, 팀원이면 누구나) | PATCH | `/api/tasks/{id}/status` |
+| 할 일 담당자를 나로 변경 ("나로 바꾸기", 팀원이면 누구나) | PATCH | `/api/tasks/{id}/reassign` |
 | 캘린더 범위 조회 (from/to, 완료 포함) | GET | `/api/tasks/calendar` |
 | LLM 기반 재정렬 | POST | `/api/tasks/rerank` |
 | 완료 이력 조회 (period=week\|month) | GET | `/api/tasks/history` |
+| 팀 생성 | POST | `/api/teams` |
+| 내 팀 목록 | GET | `/api/teams` |
+| 팀 상세 (멤버 목록 포함) | GET | `/api/teams/{id}` |
+| 팀원 추가 (가입된 이메일, 팀장만) | POST | `/api/teams/{id}/members` |
+| 팀 업무 생성 (담당자 지정) | POST | `/api/teams/{id}/tasks` |
+| 팀 업무 LLM 그룹화 ("역할 추천 분배") | POST | `/api/teams/{id}/organize` |
+| 그룹화된 업무 묶음 조회 | GET | `/api/teams/{id}/bundles` |
+| 팀 공유 보드 조회 (담당자·점수 포함) | GET | `/api/teams/{id}/board` |
 
 `/api/auth/**`를 제외한 모든 엔드포인트는 `Authorization: Bearer <JWT>` 헤더가 필요합니다.
 
@@ -79,7 +99,7 @@ score = w1 * urgency_score + w2 * importance_score + w3 * effort_score
 ./gradlew test           # 테스트만 실행
 ```
 
-단위 테스트(`PriorityScoreCalculatorTest`, `TaskRerankServiceTest`) + 컨트롤러별 MockMvc 통합 테스트(회원가입/로그인, 할 일 CRUD/완료/이력, 가중치, CORS 등) 37개가 있습니다. 테스트는 `src/test/resources/application.yml`로 별도 인메모리 H2(`jdbc:h2:mem:nowwhat-test`)를 써서 위의 파일 기반 dev DB와 완전히 격리되어 있습니다 — `bootRun`이 떠 있어도 `./gradlew test`가 파일 락 충돌 없이 항상 통과합니다.
+단위 테스트(`PriorityScoreCalculatorTest`, `TaskRerankServiceTest`, `TeamAssignmentServiceTest`) + 컨트롤러별 MockMvc 통합 테스트(회원가입/로그인, 할 일 CRUD/완료/이력, 가중치, 팀 생성/멤버/업무/그룹화/재배정, CORS 등) 50개가 있습니다. 테스트는 `src/test/resources/application.yml`로 별도 인메모리 H2(`jdbc:h2:mem:nowwhat-test`)를 써서 위의 파일 기반 dev DB와 완전히 격리되어 있습니다 — `bootRun`이 떠 있어도 `./gradlew test`가 파일 락 충돌 없이 항상 통과합니다.
 
 ## 프로젝트 구조
 
@@ -94,8 +114,9 @@ src/main/java/com/nowwhat/
 │   └── common/
 └── domain/
     ├── user/              # 인증, 사용자 가중치
-    ├── task/               # 할 일 CRUD, 우선순위 계산, LLM 재정렬
-    └── taskhistory/        # 완료 이력
+    ├── task/               # 할 일 CRUD, 우선순위 계산, LLM 재정렬, 상태 변경/재배정
+    ├── taskhistory/        # 완료 이력
+    └── team/                # 팀, 팀원, 업무 묶음(TaskBundle), LLM 기반 업무 그룹화
 ```
 
 각 도메인 패키지는 `entity / repository / service / controller / dto` 하위 구조를 가집니다.

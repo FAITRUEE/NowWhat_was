@@ -1,5 +1,5 @@
 package com.nowwhat.domain.task.entity;
 
 public enum TaskStatus {
-    TODO, DONE
+    TODO, IN_PROGRESS, DONE
 }
