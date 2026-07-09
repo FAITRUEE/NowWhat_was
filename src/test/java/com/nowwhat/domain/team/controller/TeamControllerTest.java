@@ -207,6 +207,38 @@ class TeamControllerTest {
     }
 
     @Test
+    void reassign_toAnExplicitTeamMember_succeeds_butToAnOutsider_isRejected() throws Exception {
+        long teamId = createTeam("팀");
+        String memberEmail = "member-" + System.nanoTime() + "@example.com";
+        TestAuth.signupAndLogin(mockMvc, objectMapper, memberEmail, "password123");
+        addMember(teamId, memberEmail);
+        long memberId = memberIdByEmail(teamId, memberEmail);
+
+        String response = createTask(teamId, "기획", ownerId)
+                .andReturn().getResponse().getContentAsString();
+        long taskId = objectMapper.readTree(response).get("id").asLong();
+
+        // owner (not the current assignee's only option) picks a specific teammate as the new assignee
+        mockMvc.perform(patch("/api/tasks/" + taskId + "/reassign")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType("application/json")
+                        .content("{\"assigneeUserId\":" + memberId + "}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/teams/" + teamId + "/board").header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].assigneeEmail").value(memberEmail));
+
+        // a userId that never joined this team must be rejected as a reassignment target
+        mockMvc.perform(patch("/api/tasks/" + taskId + "/reassign")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType("application/json")
+                        .content("{\"assigneeUserId\":999999}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+    }
+
+    @Test
     void board_includesScoreAndAssignee_andRejectsNonMembers() throws Exception {
         long teamId = createTeam("팀");
         createTask(teamId, "기획", ownerId).andExpect(status().isCreated());
