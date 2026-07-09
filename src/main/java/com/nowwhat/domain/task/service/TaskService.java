@@ -139,13 +139,23 @@ public class TaskService {
     }
 
     /**
-     * "나로 바꾸기" on the team board — any fellow team member can take over a task from whoever
-     * currently owns it, no restrictions beyond membership (reuses {@link #getAccessibleTask}).
+     * Change who a team task is assigned to. Any accessible team member can trigger this, not
+     * just the current assignee — reassignment isn't ownership-guarded (reuses
+     * {@link #getAccessibleTask}). "나로 바꾸기" is just the special case of this where
+     * assigneeUserId is null/omitted, defaulting the target to the requester. When an explicit
+     * assigneeUserId is given, that target must also belong to the task's team (the team owner
+     * always has a membership row too, see TeamService#createTeam), so a task can't be handed to
+     * someone outside the team.
      */
     @Transactional
-    public TaskResponse reassignToSelf(Long userId, Long taskId) {
+    public TaskResponse reassign(Long userId, Long taskId, Long assigneeUserId) {
         Task task = getAccessibleTask(userId, taskId);
-        task.reassignTo(getUser(userId));
+        Long targetUserId = assigneeUserId != null ? assigneeUserId : userId;
+        Long teamId = task.getTeamId();
+        if (teamId != null && !teamMemberRepository.existsByTeamIdAndUserId(teamId, targetUserId)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        task.reassignTo(getUser(targetUserId));
         applyScore(task, task.getUser());
         return TaskResponse.from(task);
     }

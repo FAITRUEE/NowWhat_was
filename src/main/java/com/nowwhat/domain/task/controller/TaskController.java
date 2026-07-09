@@ -4,6 +4,7 @@ import com.nowwhat.domain.task.dto.RerankCandidate;
 import com.nowwhat.domain.task.dto.RerankedTask;
 import com.nowwhat.domain.task.dto.TaskCompleteRequest;
 import com.nowwhat.domain.task.dto.TaskCreateRequest;
+import com.nowwhat.domain.task.dto.TaskReassignRequest;
 import com.nowwhat.domain.task.dto.TaskResponse;
 import com.nowwhat.domain.task.dto.TaskStatusUpdateRequest;
 import com.nowwhat.domain.task.dto.TaskUpdateRequest;
@@ -107,8 +108,13 @@ public class TaskController {
     }
 
     @PatchMapping("/{id}/reassign")
-    public TaskResponse reassignToSelf(@AuthenticationPrincipal Long userId, @PathVariable Long id) {
-        return taskService.reassignToSelf(userId, id);
+    public TaskResponse reassign(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long id,
+            @RequestBody(required = false) TaskReassignRequest request
+    ) {
+        Long assigneeUserId = request != null ? request.assigneeUserId() : null;
+        return taskService.reassign(userId, id, assigneeUserId);
     }
 
     @PostMapping("/rerank")
