@@ -1,6 +1,40 @@
-# NowWhat — 할 일 우선순위 추천 서비스 (Backend)
+<div align="center">
 
-사용자의 할 일 목록을 마감일·중요도·소요시간 기준으로 분석해, 오늘 무엇부터 해야 하는지 우선순위를 자동으로 추천해주는 개인 생산성 서비스의 백엔드입니다.
+# NowWhat — 지금 뭐부터 하지? (Backend)
+
+**할 일을 마감·중요도·예상 시간으로 점수화해 오늘 먼저 할 일을 줄 세우는 서비스의 서버입니다.<br>"AI 재정렬"을 누르면 상위 후보를 로컬 LLM이 다시 보고 순서와 이유를 다듬으며, 실패하면 규칙 기반 순위로 돌아갑니다.**
+
+![Java](https://img.shields.io/badge/Java_21-ED8B00?style=flat-square&logo=openjdk&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring_Boot_4.1-6DB33F?style=flat-square&logo=springboot&logoColor=white)
+![Spring Security](https://img.shields.io/badge/Spring_Security_+_JWT-6DB33F?style=flat-square&logo=springsecurity&logoColor=white)
+![H2](https://img.shields.io/badge/JPA_·_H2-1E4E8C?style=flat-square)
+![Ollama](https://img.shields.io/badge/Ollama_·_EXAONE_3.5-000000?style=flat-square&logo=ollama&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-51_passing-2E7D32?style=flat-square)
+
+[프론트엔드 저장소 (NowWhat_web)](https://github.com/FAITRUEE/NowWhat_web) · 1인 풀스택 · 2026 여름 영남대 생성형 AI 서비스 플랫폼 활용 교육
+
+<img src="https://raw.githubusercontent.com/FAITRUEE/NowWhat_web/main/docs/screenshots/dashboard.png" alt="NowWhat 대시보드" width="860">
+
+| 할 일 상세 | 가중치 설정 | 팀 칸반 보드 |
+|:---:|:---:|:---:|
+| <img src="https://raw.githubusercontent.com/FAITRUEE/NowWhat_web/main/docs/screenshots/task-detail.png" alt="할 일 상세" width="280"> | <img src="https://raw.githubusercontent.com/FAITRUEE/NowWhat_web/main/docs/screenshots/weights.png" alt="가중치 설정" width="280"> | <img src="https://raw.githubusercontent.com/FAITRUEE/NowWhat_web/main/docs/screenshots/team-board.png" alt="팀 칸반 보드" width="280"> |
+
+</div>
+
+<br>
+
+## 설계에서 신경 쓴 것
+
+| 무엇을 | 어떻게 |
+|---|---|
+| 점수는 늘 지금 기준으로 | 조회할 때마다 현재 시각으로 긴급도를 다시 계산 — 저장된 점수가 낡지 않음 |
+| LLM은 보조로만 | 순서는 규칙 점수가 정하고, "AI 재정렬" 요청 때만 상위 후보(기본 5개)를 LLM에 보냄. 서버가 꺼져 있거나 응답을 못 읽으면 규칙 기반 순위로 폴백 |
+| 응답 형식 깨짐 대비 | Ollama JSON 모드로 받아 파싱하고, 역할 추천 분배는 응답의 업무 ID가 실제 후보와 맞는지까지 검사한 뒤 반영 |
+| 권한은 역할별로 | 칸반 상태 변경은 팀원 누구나, 내용 수정·삭제는 담당자만 — 기존 개인 업무 권한 체크를 재사용 |
+| 인증 실패는 401로 | 토큰이 없거나 만료되면 401을 돌려줘, 프론트가 받아서 로그인 화면으로 보냄 (권한 없음은 403) |
+| 테스트는 실 DB와 분리 | 인메모리 H2로 51개 테스트 — `bootRun`이 떠 있어도 항상 통과 |
+
+<br>
 
 ## 핵심 기능
 
@@ -8,7 +42,7 @@
 - **우선순위 자동 계산**: 규칙 기반 스코어링으로 할 일 정렬 (조회 시점마다 최신 시각 기준으로 재계산)
 - **가중치 커스터마이징**: 긴급도/중요도/소요시간 가중치를 사용자가 직접 조정, 변경 시 전체 재계산
 - **완료 처리 및 이력 관리**: 완료 시 실제 소요시간 기록, 기간별 이력 조회
-- **LLM 기반 재정렬**: 점수가 비슷한 상위 할 일들을 로컬 LLM(Ollama)에 전달해 자연어로 재정렬 + 추천 이유 생성, 실패 시 규칙 기반 순위로 자동 폴백
+- **LLM 기반 재정렬**: 점수 상위 할 일들(기본 5개)을 로컬 LLM(Ollama)에 전달해 자연어로 재정렬 + 추천 이유 생성, 실패 시 규칙 기반 순위로 자동 폴백
 - **팀 협업**: 팀 생성/멤버 초대, 담당자를 지정한 업무 생성, LLM 기반 업무 그룹화("역할 추천 분배" — 이미 만들어진 업무들을 우선순위/성격이 비슷한 묶음으로 재편성, 실패 시 라운드로빈 폴백), 담당자 재배정("나로 바꾸기"), 팀원 누구나 편집 가능한 공유 칸반보드(할 일/진행 중/완료)
 
 ## 기술 스택
@@ -99,7 +133,7 @@ score = w1 * urgency_score + w2 * importance_score + w3 * effort_score
 ./gradlew test           # 테스트만 실행
 ```
 
-단위 테스트(`PriorityScoreCalculatorTest`, `TaskRerankServiceTest`, `TeamAssignmentServiceTest`) + 컨트롤러별 MockMvc 통합 테스트(회원가입/로그인, 할 일 CRUD/완료/이력, 가중치, 팀 생성/멤버/업무/그룹화/재배정, CORS 등) 50개가 있습니다. 테스트는 `src/test/resources/application.yml`로 별도 인메모리 H2(`jdbc:h2:mem:nowwhat-test`)를 써서 위의 파일 기반 dev DB와 완전히 격리되어 있습니다 — `bootRun`이 떠 있어도 `./gradlew test`가 파일 락 충돌 없이 항상 통과합니다.
+단위 테스트(`PriorityScoreCalculatorTest`, `TaskRerankServiceTest`, `TeamAssignmentServiceTest`) + 컨트롤러별 MockMvc 통합 테스트(회원가입/로그인, 할 일 CRUD/완료/이력, 가중치, 팀 생성/멤버/업무/그룹화/재배정, CORS, 인증 없는 요청 401 등) 51개가 있습니다. 테스트는 `src/test/resources/application.yml`로 별도 인메모리 H2(`jdbc:h2:mem:nowwhat-test`)를 써서 위의 파일 기반 dev DB와 완전히 격리되어 있습니다 — `bootRun`이 떠 있어도 `./gradlew test`가 파일 락 충돌 없이 항상 통과합니다.
 
 ## 프로젝트 구조
 

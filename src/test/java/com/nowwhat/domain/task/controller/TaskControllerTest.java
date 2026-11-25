@@ -81,14 +81,14 @@ class TaskControllerTest {
     }
 
     @Test
-    void create_withoutAuthHeader_returns403() throws Exception {
+    void create_withoutAuthHeader_returns401() throws Exception {
         String deadline = LocalDateTime.now().plusDays(2).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
         String body = """
                 {"title":"제목","deadline":"%s","importance":3}
                 """.formatted(deadline);
 
         mockMvc.perform(post("/api/tasks").contentType("application/json").content(body))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -213,12 +213,12 @@ class TaskControllerTest {
     }
 
     @Test
-    void calendar_withoutAuthHeader_returns403() throws Exception {
+    void calendar_withoutAuthHeader_returns401() throws Exception {
         LocalDate from = LocalDate.now();
         LocalDate to = LocalDate.now().plusDays(7);
 
         mockMvc.perform(get("/api/tasks/calendar?from=" + from + "&to=" + to))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     private long createTask(String title, LocalDateTime deadline, int importance, int estimatedMinutes) throws Exception {

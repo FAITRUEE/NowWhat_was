@@ -77,8 +77,8 @@ class TaskHistoryControllerTest {
     }
 
     @Test
-    void history_withoutAuthHeader_returns403() throws Exception {
-        mockMvc.perform(get("/api/tasks/history?period=week")).andExpect(status().isForbidden());
+    void history_withoutAuthHeader_returns401() throws Exception {
+        mockMvc.perform(get("/api/tasks/history?period=week")).andExpect(status().isUnauthorized());
     }
 
     private void seedCompletedTask(String title, LocalDateTime completedAt) {
