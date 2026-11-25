@@ -95,7 +95,7 @@ class UserControllerTest {
     }
 
     @Test
-    void weights_withoutAuthHeader_returns403() throws Exception {
-        mockMvc.perform(get("/api/users/weights")).andExpect(status().isForbidden());
+    void weights_withoutAuthHeader_returns401() throws Exception {
+        mockMvc.perform(get("/api/users/weights")).andExpect(status().isUnauthorized());
     }
 }
